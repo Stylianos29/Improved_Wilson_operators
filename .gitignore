@@ -1,0 +1,10 @@
+u1-hmc/
+Critical_mass_analysis/analysis/effective_mass_estimates/
+Critical_mass_analysis/custom_library/__pycache__
+Critical_mass_analysis/custom_library/__init__.py
+Critical_mass_analysis/plots/
+Critical_mass_analysis/processed_files/
+Critical_mass_analysis/processing/jobs_info/
+Critical_mass_analysis/processing/to_be_processed/
+Critical_mass_analysis/processing/runtimes.txt
+Critical_mass_analysis/tests/
