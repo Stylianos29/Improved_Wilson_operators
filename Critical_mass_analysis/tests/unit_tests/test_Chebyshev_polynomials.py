@@ -86,6 +86,37 @@ def test_Chebyshev_polynomials_of_the_first_kind_recursive_definition(real_scala
 
   assert np.isclose(expression, benchmark), 'The recursive definition of the Chebyshev polynomials of the first kind definition is not respected.'
 
+@pytest.mark.property_test
+@pytest.mark.parametrize("i, j, expected", [(5, 9, 0), (0, 0, 10), (3, 3, 5)])
+def test_Chebyshev_polynomials_of_the_first_kind_discrete_orthogonality_condition(i, j, expected):
+
+  # Arbitrary value for N
+  N = 10
+
+  #helper function
+  def xk(k):
+    return np.cos(np.pi/float(N)*(k+0.5))
+
+  orthogonality_condition = 0.
+  for k in range(N):
+    orthogonality_condition += Chebyshev_polynomials.scalar_Chebyshev_polynomial_term_function(xk(k), i)*Chebyshev_polynomials.scalar_Chebyshev_polynomial_term_function(xk(k), j)
+
+  assert np.isclose(orthogonality_condition, expected), 'The discrete orthogonality condition of the Chebyshev polynomials of the first kind definition is not satisfied.'
+
+def test_specific_scalar_Chebyshev_polynomials_expansion():
+
+  # Object instantiation
+  alpha = 0.1
+  beta = 4.
+  Chebyshev_polynomials_expansion = Chebyshev_polynomials.ScalarChebyshevPolynomialsSignFunction(alpha, beta)
+
+  x = 0.55
+  N = 300
+  expression = Chebyshev_polynomials_expansion(x, N)
+  benchmark = Chebyshev_polynomials_expansion.r(x)
+
+  assert np.isclose(expression, benchmark), 'The Chebyshev polynomials expansion of the specific function does not converge to the function value for the passed argument.'
+
 #############################
 #     MATRIX FUNCTIONS
 #############################
@@ -139,6 +170,23 @@ def test_matrix_Chebyshev_polynomials_of_the_first_kind_recursive_definition(rea
   benchmark = Chebyshev_polynomials.matrix_approximate_cosine_function(n*real_matrix_input_values)
 
   assert np.all(np.isclose(expression, benchmark)), 'The recursive definition of the Chebyshev polynomials of the first kind definition is not respected.'
+
+# def test_temp():
+
+#   A = np.random.rand(5,5) + 1.j*np.random.rand(5,5)
+#   B = np.matmul(np.transpose(np.conjugate(A)), A)
+
+#   sign_function_of = Chebyshev_polynomials.MatrixChebyshevPolynomialsSignFunction()
+
+#   C = sign_function_of(B, N=80)
+
+#   D = Chebyshev_polynomials.matrix_formal_sign_function_function(B)
+
+#   print(np.max(np.identity(B.shape[0]) - matrix_power(D,2)))
+
+#   print(str(sign_function_of))
+
+#   return np.max(C - D)
 
 #############################
 #     VECTOR FUNCTIONS
