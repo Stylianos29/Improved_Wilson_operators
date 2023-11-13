@@ -1,270 +1,192 @@
-'''
-TODO: denote properly public and private members of classes
-'''
-
+'''This module contains "GaugeLinksField" a subclass of "LatticeStructure" that contains the actual gauge links field values and serves also as a base class for all the operator-related classes.'''
 import numpy as np
-import itertools
-from mpi4py import MPI
+
+import custom_library.auxiliary as auxiliary
+import custom_library.lattice as lattice
 
 
-class LatticeStructure:
+class GaugeLinksField(lattice.LatticeStructure):
 
-    def __init__(self, lattice_size=9, lattice_dimensions=2, fermion_dimensions=4):
-
-        comm = MPI.COMM_WORLD
-        rank = comm.Get_rank()
-        size = comm.Get_size()
-
-        assert isinstance(lattice_size, int) and (lattice_size >= 9), 'Lattice size must be a positive integer greater or equal to 9.'
-        self.lattice_size = lattice_size
-
-        # assert lattice_size%size == 0, 'The number of processes must be a divisor of the lattice size.'
-        self.comm = comm
-        self.rank = rank
-        self.size = size
-
-        assert isinstance(lattice_dimensions, int) and fermion_dimensions in [1, 2, 3, 4], 'Lattice dimensions must be a positive integer greater or equal to 1 and less or equal to 4.'
-        self.lattice_dimensions = lattice_dimensions
-
-        assert isinstance(fermion_dimensions, int) and fermion_dimensions in [2, 4], 'Fermion dimensions must be a positive integer equal either to 2 or 4.'
-        self.fermion_dimensions = fermion_dimensions
-
-    def __repr__(self) -> str:
-
-        # TODO Anticipate the case the size of the time direction differs from the spatial ones.
-        
-        lattice_shape = tuple([self.lattice_size]*self.lattice_dimensions)
-
-        return f"\nA {self.lattice_dimensions}D lattice structure of shape ({lattice_shape}) has been initialized accommodating {self.fermion_dimensions}-component fermions.\n"
-        # {type(self).__name__}
-
-    def lattice_sites_coordinates(self):
-        ''' OUTPUT: an array of size (lattice_size^2, lattice_dimensions)
-        TODO:
-        * document usage
-        * parallel case
+    def __init__(self, gauge_links_field_array, gauge_links_phase_value_field_boolean=False, fermion_dimensions=4, *, random_gauge_links_field_boolean=False):
+        '''Expected shapes for the gauge_links_field_array:
+        - 1D: (L,) or (L,u,u)
+        - 2D: (L,L,2) or (L,L,2,u,u)
+        - 3D: (L,L,L,3) or (L,L,L,3,u,u)
+        - 4D: (L,L,L,L,4) or (L,L,L,L,4,u,u)
         '''
         
-        list_of_axes = [[flat_index for flat_index in range(self.lattice_size)] ]*self.lattice_dimensions
-        
-        return list(itertools.product(*list_of_axes))
-    
-    def tuple_addition(self, a, b):
-
-        lattice_size = self.lattice_size
-
-        result = ((a[0]+b[0]+lattice_size)%lattice_size, (a[1]+b[1]+lattice_size)%lattice_size)
-        
-        return result
-    
-    def coordinate_index(self, coordinate_tuple):
-        
-        return coordinate_tuple[0]*self.lattice_size + coordinate_tuple[1]
-
-###############################################################################################
-###############################################################################################
-###############################################################################################
-###############################################################################################
-
-class GaugeLinksField(LatticeStructure):
-
-    def __init__(self, lattice_size, lattice_dimensions, fermion_dimensions, theory_label=1, random_gauge_links_field_boolean=False):
-
-        super().__init__(lattice_size, lattice_dimensions, fermion_dimensions)
-
-        assert isinstance(theory_label, int) and theory_label in (1, 2, 3), 'Theory label must be a positive integer equal either to 1, 2 or 3 indicating U(1), SU(2), SU(3) gauge links fields correspondingly.'
-        self.theory_label = theory_label
-
-        # Create a random phase values array if requested
-        if random_gauge_links_field_boolean:
-            self._gauge_links_phase_values_field_array = self.phase_values_array_random_generator()
-    
-    @classmethod
-    def from_LatticeStructure_object(cls, lattice_structure, theory_label):
-
-        assert isinstance(lattice_structure, LatticeStructure), 'The argument must be an instance of the "LatticeStructure" class.'
-        # cls.lattice_structure = lattice_structure
-
-        return cls(lattice_structure.lattice_size, lattice_structure.lattice_dimensions, lattice_structure.fermion_dimensions, theory_label)
-    
-    @classmethod
-    def from_gauge_links_field_array(cls, gauge_links_field_array, fermion_dimensions=4):
-
-        '''
-        TODO:
-        * Check if gauge_links_field_array is not empty
-        * Improve method for extracting lattice_size, lattice_dimensions, and theory_label.
-        '''
+        assert isinstance(random_gauge_links_field_boolean, bool), 'Parameter "random_gauge_links_field_boolean" takes only boolean values, True or False.'
+        self._random_gauge_links_field_boolean = random_gauge_links_field_boolean # Stored only for debugging purposes.
 
         gauge_links_field_array = np.array(gauge_links_field_array)
+        assert (gauge_links_field_array.size != 0) and (gauge_links_field_array.ndim >= 1), 'Passed gauge links field array must be a non-empty multidimensional array.'
 
+        # Extracting the "gauge_theory_label" fundamental immutable parameter, along with the lattice shape for the initialization of the base class.
         gauge_links_field_array_shape = np.shape(gauge_links_field_array)
+        # SU(2) and SU(3) cases 
+        if (gauge_links_field_array_shape[-1] == gauge_links_field_array_shape[-2]):
+            assert self._gauge_theory_label in [2, 3], 'Gauge group theory groups used are not among the expected U(1), SU(2), or SU(3) ones.'
+            self._gauge_theory_label = gauge_links_field_array_shape[-1]
+             # This covers immediately the 1D case
+            lattice_shape = gauge_links_field_array_shape[:-2]
 
-        lattice_size = gauge_links_field_array_shape[0]
-        lattice_dimensions = gauge_links_field_array_shape[-1]
-        theory_label = 1
-
-        return cls(lattice_size, lattice_dimensions, fermion_dimensions, theory_label)
-            
-    def __repr__(self) -> str:
-        '''
-        TODO:
-        * use the LatticeStructure __repr__
-        * check existence of gauge links field attribute
-        '''
-        # print(self.__repr__)
+        else: # U(1) case
+            self._gauge_theory_label = 1
+            lattice_shape = gauge_links_field_array_shape # 1D case
         
-        lattice_shape = tuple([self.lattice_size]*self.lattice_dimensions)
-        if (self.theory_label == 1):
-            gauge_theory_label = 'U(1)'
-        else:
-            gauge_theory_label = 'SU('+str(self.theory_label)+')'
+        if (len(lattice_shape) >= 3): # Rest 2D, 3D, and 4D cases
+            # Additional check
+            assert lattice_shape[-1] == len(lattice_shape) - 1, 'Lattice dimensions do not correspond to the number of lattice axes.'
+            lattice_shape = lattice_shape[:-1]
 
-        return  f"\nA {self.lattice_dimensions}D lattice structure of shape {lattice_shape} has been initialized accommodating {self.fermion_dimensions}-component fermions.\nIn addition, embedded in this lattice structure is a {gauge_theory_label} gauge links field of shape {np.shape(self.gauge_links_phase_values_field_array)}.\n"
+        lattice_size, lattice_dimensions, temporal_axis_size = lattice.LatticeStructure.turning_lattice_shape_to_fundamental_parameters(lattice_shape=lattice_shape)
 
-        # return f'\nAn instance of the {type(self).__name__} class has been created with arguments: lattice_size={self.lattice_size}, lattice_dimensions={self.lattice_dimensions}, fermion_dimensions={self.fermion_dimensions}, theory_label={self.theory_label}.\n'
+        super().__init__(lattice_size=lattice_size, lattice_dimensions=lattice_dimensions, fermion_dimensions=fermion_dimensions, temporal_axis_size=temporal_axis_size)
+        
+        # Differentiating between two cases: whether the "gauge_links_field_array" contains actual gauge link values at lattice sites or if it instead contains gauge link phase values.
+        assert isinstance(gauge_links_phase_value_field_boolean, bool), 'Parameter "gauge_links_phase_value_field_boolean" takes only boolean values, True or False.'
+        self._gauge_links_phase_value_field_boolean = gauge_links_phase_value_field_boolean
 
-    '''
-    TODO: Validate input with assert statements
-    '''
+        if gauge_links_phase_value_field_boolean: # Phase values
+            assert np.all(np.isreal(gauge_links_field_array)), 'The gauge links phase values array passed must be real-valued.'
+            self._gauge_links_phase_values_field_array = gauge_links_field_array
+            # Constructing the corresponding gauge links field array
+            self._gauge_links_field_array = self._converting_to_gauge_links_field_function()
+        
+        else: # Actual gauge links values at lattice sites
+            assert np.any(np.iscomplex(gauge_links_field_array)), 'The gauge links array passed must be complex-valued.'
+            self._gauge_links_field_array = gauge_links_field_array
+            # Constructing the corresponding gauge links phase values field array
+            self._gauge_links_phase_values_field_array = self._converting_to_gauge_links_phase_values_field_function()
+    
+    @classmethod
+    def from_lattice_shape_with_random_gauge_links_field(cls, lattice_shape=(9,9), fermion_dimensions=4, gauge_theory_label=1, random_generator_seed=None, random_phase_values_range=np.pi/2):
+        '''NOTE: Alternative constructor ONLY for testing purposes.'''
+        
+        # A random array is constructed
+        gauge_links_phase_value_field_array = cls.random_gauge_links_field_phase_values_array_function(lattice_shape=lattice_shape, gauge_theory_label=gauge_theory_label, random_generator_seed=random_generator_seed, random_phase_values_range=random_phase_values_range)
+
+        return cls(gauge_links_field_array=gauge_links_phase_value_field_array, gauge_links_phase_value_field_boolean=True, fermion_dimensions=fermion_dimensions, random_gauge_links_field_boolean=True)
+
+    @property
+    def gauge_theory_label(self):
+        return self._gauge_theory_label
+    
+    @gauge_theory_label.setter
+    def gauge_theory_label(self, gauge_theory_label):
+        raise auxiliary.ReadOnlyAttributeError(gauge_theory_label=gauge_theory_label)
+
+    @property
+    def gauge_links_field_array(self):
+        return self._gauge_links_field_array
+    
+    @gauge_links_field_array.setter
+    def gauge_links_field_array(self, gauge_links_field_array):
+        raise auxiliary.ReadOnlyAttributeError(gauge_links_field_array=gauge_links_field_array)
+    
     @property
     def gauge_links_phase_values_field_array(self):
         return self._gauge_links_phase_values_field_array
     
     @gauge_links_phase_values_field_array.setter
     def gauge_links_phase_values_field_array(self, gauge_links_phase_values_field_array):
-        '''
-        TODO: provide a rudimentary check for gauge_links_phase_values_field_array
-        '''
-        self._gauge_links_phase_values_field_array = gauge_links_phase_values_field_array
+        raise auxiliary.ReadOnlyAttributeError(gauge_links_phase_values_field_array=gauge_links_phase_values_field_array)
 
-    '''
-    TODO: gauge_links_field_array is NOT private. It's a function of gauge_links_phase_values_field_array. 
-    '''
-    @property #DO NOT USE IT!
-    def gauge_links_field_array(self):
-        return self.gauge_links_field_array
+    @property
+    def gauge_links_phase_value_field_boolean(self):
+        return self._gauge_links_phase_value_field_boolean
     
-    @gauge_links_field_array.setter
-    def gauge_links_field_array(self, gauge_links_field_array):
-        # The gauge links field values are used to calculate thw corresponding phase values field
-        '''
-        TODO: Check input: shape and type.
-        '''
-        self._gauge_links_phase_values_field_array = np.real(1.j*np.log(gauge_links_field_array))
-
-    def phase_values_array_random_generator(self, seed=None, phase_values_range=np.pi/2.0):
-        '''
-        * INPUT: phase values range variable corresponds to the difference between the maximum minus the minimum phase value of φ in the exp(iφ) expression
-        * OUTPUT: array of shape (lattice_size, lattice_size, lattice_dimensions)
-        '''
-        
-        '''
-        TODO: 
-        * configure random generator
-        * uniform or gaussian distribution
-        '''
-        
-        # Use of the default constructor for the Generator class, equivalent to: np.random.default_rng(seed) 
-        # random_generator = np.random.default_rng(seed) 
-        # np.random.Generator(np.random.PCG64(seed))
-        
-        phase_values_array_dimensions = [*[self.lattice_size]*self.lattice_dimensions, self.lattice_dimensions]        
-        if (self.theory_label != 1):
-            phase_values_array_dimensions += [self.theory_label]*2
-
-        random_phase_values_array = np.random.rand(*phase_values_array_dimensions)
-        random_phase_values_array = 2*phase_values_range*random_phase_values_array - phase_values_range
-
-        return random_phase_values_array
-        
-    def links_values_array_random_generator(self, seed=None, phase_values_range=np.pi/2.0):
-        '''
-        TODO: adjust for parallel usage
-        '''
-
-        random_phase_values_array = self.phase_values_array_random_generator(seed, phase_values_range)
-        
-        links_values_array_random_array = np.exp(random_phase_values_array*1.j)
-
-        return links_values_array_random_array
+    @gauge_links_phase_value_field_boolean.setter
+    def gauge_links_phase_value_field_boolean(self, gauge_links_phase_value_field_boolean):
+        raise auxiliary.ReadOnlyAttributeError(gauge_links_phase_value_field_boolean=gauge_links_phase_value_field_boolean)
     
-    def gauge_links_phase_values_field_array_function(self, gauge_links_phase_values_field_array):
-        '''
-        TODO: adjust for parallel usage
-        '''
+    @property
+    def random_gauge_links_field_boolean(self):
+        return self._random_gauge_links_field_boolean
+    
+    @random_gauge_links_field_boolean.setter
+    def random_gauge_links_field_boolean(self, random_gauge_links_field_boolean):
+        raise auxiliary.ReadOnlyAttributeError(random_gauge_links_field_boolean=random_gauge_links_field_boolean)
+    
+    def __repr__(self) -> str:
+        '''The output depends on whether *random* gauge links field was requested and if not, whether a gauge links field or a gauge links phase values field array was passed.'''
 
-        gauge_links_phase_values_field_array = np.array(gauge_links_phase_values_field_array)
-
-        assert all(isinstance(element, float) for element in gauge_links_phase_values_field_array.reshape(-1)), 'The elements of the gauge links field array must be real numbers.'
-
-        expected_array_dimensions = [*[self.lattice_size]*self.lattice_dimensions, self.lattice_dimensions]
-        if (self.theory_label != 1):
-            expected_array_dimensions += [self.theory_label, self.theory_label]
-        assert np.shape(gauge_links_phase_values_field_array) == tuple(expected_array_dimensions), 'A multidimensional array is expected of shape (L, ..., L, d, n, n).'
-
-        self.gauge_links_phase_values_field_array = gauge_links_phase_values_field_array
-
-        return print(f'\nAn array of shape {np.shape(self.gauge_links_phase_values_field_array)} has been passed for the phase values of the gauge links field.\n')
-        
-    def gauge_links_field_array_function(self, gauge_links_field_array):
-        '''
-        TODO: adjust for parallel usage
-        '''
-
-        gauge_links_field_array = np.array(gauge_links_field_array)
-
-        assert all(isinstance(element, complex) for element in gauge_links_field_array.reshape(-1)), 'The elements of the gauge links field array must be complex numbers.'
-
-        expected_array_dimensions = [*[self.lattice_size]*self.lattice_dimensions, self.lattice_dimensions]
-        if (self.theory_label != 1):
-            expected_array_dimensions += [self.theory_label, self.theory_label]
-        assert np.shape(gauge_links_field_array) == tuple(expected_array_dimensions), 'A multidimensional array is expected of shape (L, ..., L, d, n, n).'
-
-        self.gauge_links_field_array = gauge_links_field_array
-        
-        return print(f'\nAn array of shape {np.shape(self.gauge_links_field_array)} has been passed as the gauge links field.\n')
-
-    def gauge_links_field_function(self, gauge_links_phase_values_field, direction):
-        '''
-        TODO:
-        * Write description
-        * Adjust to parallel case
-        '''
-
-        # directions: (0, +1) & (+1, 0)
-        if (np.sum(direction) == +1):
-            gauge_links_field_array = np.exp( 1.j*((gauge_links_phase_values_field.T)[abs(direction[0])]).T)
-
-        # directions: (0, -1) & (-1, 0)
-        elif (np.sum(direction) == -1):
-            shifted_U1_gauge_links_phase_values_field_array = (-1.0)*np.roll(gauge_links_phase_values_field, axis=abs(direction[1]), shift=+1)
-            gauge_links_field_array = np.exp( 1.j*((shifted_U1_gauge_links_phase_values_field_array.T)[abs(direction[0])]).T)
-
-        # central terms
-        elif (direction == (0,0)):
-            # matrix_dimension = np.shape(gauge_links_phase_values_field)[0]
-            # gauge_links_field_array = np.ones((matrix_dimension, matrix_dimension), dtype=np.complex_)
-            gauge_links_field_array = np.ones(np.shape(gauge_links_phase_values_field)[:-1], dtype=np.complex_)
-
-        # diagonal terms
-        else:
-            matrix_dimension = np.shape(gauge_links_phase_values_field)[0]
-            # gauge_links_field_array = np.zeros((matrix_dimension, matrix_dimension), dtype=np.complex_)
-            gauge_links_field_array = np.zeros(np.shape(gauge_links_phase_values_field)[:-1], dtype=np.complex_)
+        if (not self._random_gauge_links_field_boolean):
+            if not self._gauge_links_phase_value_field_boolean:
+                return f'\n{type(self).__name__}(gauge_links_field_array={id(self._gauge_links_field_array)}, gauge_links_phase_value_field_boolean={self._gauge_links_phase_value_field_boolean!r}, fermion_dimensions={self._fermion_dimensions!r})\n'
             
-            for path_index in [0, 1]:
-                # 1st piece
-                shifted_U1_gauge_links_phase_values_field_array = np.roll(gauge_links_phase_values_field, axis=(path_index+1)%2, shift=(-direction[(path_index+1)%2]+1)//2)
-                path_specific_gauge_links_phase_values_field = direction[(path_index+1)%2]*((shifted_U1_gauge_links_phase_values_field_array.T)[path_index]).T
-                # 2nd piece
-                shifted_U1_gauge_links_phase_values_field_array = np.roll(
-                    np.roll(gauge_links_phase_values_field, axis=(path_index+1)%2, shift= -direction[(path_index+1)%2]),
-                    axis=path_index, shift=(-direction[path_index]+1)//2)
-                path_specific_gauge_links_phase_values_field += direction[path_index]*((shifted_U1_gauge_links_phase_values_field_array.T)[(path_index+1)%2]).T
-                
-                gauge_links_field_array += np.exp( 1.j*path_specific_gauge_links_phase_values_field)
+            else:
+                return f'\n{type(self).__name__}(gauge_links_field_array={id(self._gauge_links_phase_values_field_array)}, gauge_links_phase_value_field_boolean={self._gauge_links_phase_value_field_boolean!r}, fermion_dimensions={self._fermion_dimensions!r})\n'
+        
+        else:
+            return f'\n{type(self).__name__}(gauge_links_field_array={id(self._gauge_links_phase_values_field_array)}, gauge_links_phase_value_field_boolean={self._gauge_links_phase_value_field_boolean!r}, fermion_dimensions={self._fermion_dimensions!r}, random_gauge_links_field_boolean={self._random_gauge_links_field_boolean!r})\n'
+        
+    def __str__(self) -> str:
+        '''The str output of the base class is expanded with additional details about the embedded gauge links field.'''
 
-            gauge_links_field_array = gauge_links_field_array/np.absolute(gauge_links_field_array)
+        str_output = super().__str__()
 
-        return gauge_links_field_array
+        gauge_theory_label_string = f'U({self._gauge_theory_label})'
+        if (self.gauge_theory_label != 1):
+            gauge_theory_label_string = 'S'+gauge_theory_label_string
+
+        str_output += f'Embedded in this lattice structure is a {gauge_theory_label_string} gauge links field.\n'
+
+        return str_output
+
+    @classmethod
+    def random_gauge_links_field_phase_values_array_function(cls, lattice_shape=(9,9), gauge_theory_label=1, random_generator_seed=None, random_phase_values_range=np.pi/2):
+        '''This is a special public method intended to be used only for testing purposes.'''
+
+        _, lattice_dimensions, _ = lattice.LatticeStructure.turning_lattice_shape_to_fundamental_parameters(lattice_shape=lattice_shape)
+
+        assert isinstance(gauge_theory_label, int) and (not isinstance(gauge_theory_label, bool)) and (gauge_theory_label in [1, 2, 3]), 'Input parameter "gauge_theory_label" must be a positive integer of value either 1, 2, or 3, corresponding to the U(1), SU(2), SU(3) gauge theory groups.'
+        
+        # Calculating the shape of the output array.
+        links_field_phase_values_array_shape = lattice_shape
+        # Appending lattice dimensions, apart from the 1D case
+        if (lattice_dimensions != 1):
+            links_field_phase_values_array_shape += (lattice_dimensions,)
+        # Appending gauge group matrix shape, apart from the U(1) case
+        if (gauge_theory_label != 1):
+            links_field_phase_values_array_shape += (gauge_theory_label, gauge_theory_label)
+
+        # Generating a random matrix from a uniform [0,1] distribution
+        random_gauge_links_field_phase_values_array = np.random.rand(*links_field_phase_values_array_shape)
+        
+        # Shifting its values to adjust to the desired range of values
+        ''''
+        TODO:
+        1. Make use of the PRG seed
+        2. Check what's the recommended way of generating uniform elements of array in a specified range.
+        '''
+        # Anticipating the case for which an integer number is passed to the "random_phase_values_range" parameter
+        if isinstance(random_phase_values_range, int) and (not isinstance(random_phase_values_range, bool)):
+            random_phase_values_range = float(random_phase_values_range)
+        assert isinstance(random_phase_values_range, float) and (random_phase_values_range>= 0.) and (random_phase_values_range<= np.pi/2), 'Input "random_phase_values_range" parameter must be a non-negative real-valued number smaller than or equal to π/2.'
+        random_gauge_links_field_phase_values_array = 2*random_phase_values_range*random_gauge_links_field_phase_values_array - random_phase_values_range
+
+        return random_gauge_links_field_phase_values_array
+
+    def _converting_to_gauge_links_phase_values_field_function(self):
+        '''φ = i*log(u)'''
+
+        if (self._gauge_theory_label == 1):
+            return np.real(-1.j*np.log(self._gauge_links_field_array))
+        else:
+            '''
+            TODO: Construct the SU(2) and SU(3) case
+            '''
+            pass
+        
+    def _converting_to_gauge_links_field_function(self):
+        '''u = exp(iφ)'''
+
+        if (self._gauge_theory_label == 1):
+            return np.exp(1.j*self._gauge_links_phase_values_field_array)
+        else:
+            '''
+            TODO: Construct the SU(2) and SU(3) case
+            '''
+            pass
+        
