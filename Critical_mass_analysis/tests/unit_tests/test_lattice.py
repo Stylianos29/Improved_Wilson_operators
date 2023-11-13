@@ -25,6 +25,7 @@ def tuples_of_integers(draw, min_size=0, max_size=10, min_value=0, max_value=10)
 ######## INPUT VALUES TESTING #######
 #####################################
 
+# CONSTRUCTORS
 @pytest.mark.input_values_exception_raised_test
 class TestLatticeStructureConstructor(unittest.TestCase):
   '''Tests exceptions during object instantiation with out-of-range or of incorrect-type input values for the LatticeStructure __init__ constructor.'''
@@ -45,9 +46,11 @@ class TestLatticeStructureConstructor(unittest.TestCase):
   def test_temporal_axis_size_input(self, temporal_axis_size):
     self.assertRaises(AssertionError, lambda temporal_axis_size: lattice.LatticeStructure(temporal_axis_size=temporal_axis_size), temporal_axis_size)
 
+
+# ATTRIBUTES
 @pytest.mark.input_values_exception_raised_test
 class TestImmutableAttributes(unittest.TestCase):
-  '''Tests if exception are raised when attempting to modify the fundamental immutable parameters if the lattice.'''
+  '''Tests if exception are raised when attempting to modify the fundamental immutable parameters of the lattice.'''
 
   @given(lattice_size = st.integers())
   def test_lattice_size_input(self, lattice_size):
@@ -78,6 +81,7 @@ class TestImmutableAttributes(unittest.TestCase):
       test_lattice_object.lattice_shape = lattice_shape
 
 
+# PUBLIC METHODS
 @pytest.mark.input_values_exception_raised_test
 class TestPublicMethodVectorsAddition(unittest.TestCase):
   '''Tests exceptions raised for the public .lattice_coordinates_vectors_addition() method for out-of-range or of incorrect-type input values.'''
@@ -133,6 +137,21 @@ class TestPublicMethodTurningLatticeShape(unittest.TestCase):
 #####################################
 
 @pytest.mark.output_values_replication_test
+@given(lattice_shape = tuples_of_integers(min_size=1, max_size=4, min_value=9, max_value=15))
+def test_turning_lattice_shape_to_fundamental_parameters(lattice_shape):
+  '''Tests temporal_axis_size=None output'''
+
+  assume(lattice_shape[0] == lattice_shape[-1])
+
+  _, _, temporal_axis_size = lattice.LatticeStructure.turning_lattice_shape_to_fundamental_parameters(lattice_shape)
+  
+  tested_output = temporal_axis_size
+  expected_output = None
+
+  assert tested_output == expected_output
+
+
+@pytest.mark.output_values_replication_test
 @pytest.mark.parametrize("tuple_a, tuple_b, expected_output",
       [# positive directions
       ((0,0), (0,0), (0,0)),
@@ -181,7 +200,7 @@ def test_lattice_coordinates_vectors_addition_reversibility_property(lattice_dim
 
 if __name__ == "__main__":
 
-  # Printing the output of the .__repr__ and .__str__ magic methods
+  # Debugging
   test_lattice_object = lattice.LatticeStructure()
   print(repr(test_lattice_object))
   print()
