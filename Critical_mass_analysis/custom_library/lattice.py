@@ -87,20 +87,23 @@ class LatticeStructure:
         raise auxiliary.ReadOnlyAttributeError(lattice_shape=lattice_shape)
 
     def __repr__(self) -> str:
-        return f'\n{type(self).__name__}(lattice_size={self._lattice_size!r}, lattice_dimensions={self._lattice_dimensions!r}, fermion_dimensions={self._fermion_dimensions!r}, temporal_axis_size={self._lattice_shape[0]!r})'
+        return f'\n{type(self).__name__}(lattice_size={self._lattice_size!r}, lattice_dimensions={self._lattice_dimensions!r}, fermion_dimensions={self._fermion_dimensions!r}, temporal_axis_size={self._lattice_shape[0]!r})\n'
 
     def __str__(self) -> str:
         return f'\nA {self._lattice_dimensions}D lattice structure of shape ({self._lattice_shape}) has been constructed accommodating {self._fermion_dimensions}-component fermions.\n'
     
     @classmethod
-    def turning_lattice_shape_to_fundamental_parameters(self, lattice_shape):
+    def turning_lattice_shape_to_fundamental_parameters(cls, lattice_shape):
         '''Public class method to be called from subclasses as well mostly mostly to facilitate object initialization.'''
 
         assert isinstance(lattice_shape, tuple) and (len(lattice_shape) > 0) and (len(lattice_shape) <= 4) and all( isinstance(component, int) and (component >= 9) for component in lattice_shape), 'Lattice shape must be a non-empty tuple of at most 4 integers equal to or larger than 9.'
 
         lattice_size = lattice_shape[-1]
         lattice_dimensions = len(lattice_shape)
-        temporal_axis_size = lattice_shape[0]
+        
+        temporal_axis_size = None
+        if lattice_shape[0] != lattice_shape[-1]:
+            temporal_axis_size = lattice_shape[0]
 
         return lattice_size, lattice_dimensions, temporal_axis_size
 
