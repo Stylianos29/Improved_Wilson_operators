@@ -26,8 +26,8 @@ def tuples_of_integers(draw, min_size=0, max_size=10, min_value=0, max_value=10)
 #####################################
 
 @pytest.mark.input_values_exception_raised_test
-class TestLatticeStructureInputValues(unittest.TestCase):
-  '''Tests exceptions during object instantiation with out-of-range or of incorrect-type input values for LatticeStructure constructors.'''
+class TestLatticeStructureConstructor(unittest.TestCase):
+  '''Tests exceptions during object instantiation with out-of-range or of incorrect-type input values for the LatticeStructure __init__ constructor.'''
   
   @given(lattice_size = st.integers().filter(lambda n: not n >= 9) | st.none() | COMMON_TYPE_STRATEGIES)
   def test_lattice_size_input(self, lattice_size):
@@ -44,12 +44,6 @@ class TestLatticeStructureInputValues(unittest.TestCase):
   @given(temporal_axis_size = st.integers().filter(lambda n: not n >= 9) | COMMON_TYPE_STRATEGIES) # Default value: None
   def test_temporal_axis_size_input(self, temporal_axis_size):
     self.assertRaises(AssertionError, lambda temporal_axis_size: lattice.LatticeStructure(temporal_axis_size=temporal_axis_size), temporal_axis_size)
-
-  # Alternative constructor
-  @given(lattice_shape = tuples_of_integers(min_size=5) | tuples_of_integers(min_size=1, max_size=4, max_value=8) | st.none() | COMMON_TYPE_STRATEGIES)
-  def test_lattice_shape_input(self, lattice_shape):
-    self.assertRaises(AssertionError, lambda lattice_shape: lattice.LatticeStructure.from_lattice_shape(lattice_shape=lattice_shape), lattice_shape)
-
 
 @pytest.mark.input_values_exception_raised_test
 class TestImmutableAttributes(unittest.TestCase):
@@ -85,9 +79,11 @@ class TestImmutableAttributes(unittest.TestCase):
 
 
 @pytest.mark.input_values_exception_raised_test
-class TestPublicMethods(unittest.TestCase):
-  test_lattice_object = lattice.LatticeStructure()
+class TestPublicMethodVectorsAddition(unittest.TestCase):
+  '''Tests exceptions raised for the public .lattice_coordinates_vectors_addition() method for out-of-range or of incorrect-type input values.'''
   
+  test_lattice_object = lattice.LatticeStructure()
+
   @given(tuple_a = COMMON_TYPE_STRATEGIES | st.integers(),tuple_b = COMMON_TYPE_STRATEGIES | st.integers())
   def test_lattice_coordinates_vectors_addition_with_vectors_of_incorrect_type(self, tuple_a, tuple_b):
     with self.assertRaises(AssertionError):
@@ -119,6 +115,18 @@ class TestPublicMethods(unittest.TestCase):
 
     with self.assertRaises(AssertionError):
       self.test_lattice_object.lattice_coordinates_vectors_addition(tuple_a, tuple_b)
+
+
+@pytest.mark.input_values_exception_raised_test
+class TestPublicMethodTurningLatticeShape(unittest.TestCase):
+  '''Tests exceptions raised for the public .turning_lattice_shape_to_fundamental_parameters() method for out-of-range or of incorrect-type input values.'''
+
+  test_lattice_object = lattice.LatticeStructure()
+
+  @given(lattice_shape = tuples_of_integers(min_size=5) | tuples_of_integers(min_size=1, max_size=4, max_value=8) | st.tuples(st.floats(), st.floats()) | st.none() | COMMON_TYPE_STRATEGIES)
+  @example("(,)")
+  def test_turning_lattice_shape_to_fundamental_parameters_input(self, lattice_shape):
+    self.assertRaises(AssertionError, lambda lattice_shape: lattice.LatticeStructure.turning_lattice_shape_to_fundamental_parameters(lattice_shape=lattice_shape), lattice_shape)
 
 #####################################
 ####### OUTPUT VALUES TESTING #######
