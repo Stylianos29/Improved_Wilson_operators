@@ -48,12 +48,9 @@ class LatticeStructure:
 
     @classmethod
     def from_lattice_shape(cls, lattice_shape=(9,9), fermion_dimensions=4):
-        '''-USAGE: Alternative constructor; explicitly pass the lattice shape. Convention: Axis 0 is temporal; the rest are spatial. Assumes only the temporal axis differs in size. Example: an input lattice shape: (20, 2, 3, 10) will be taken to be as (20, 10, 10, 10)'''
+        '''-USAGE: Alternative constructor; explicitly pass the lattice shape instead of fundamental parameters for the lattice. Convention: Axis 0 is temporal; the rest are spatial. Assumes only the temporal axis might differ in size. Lattice size is extracted from the last element of the lattice shape. Example: an input lattice shape: (20, 2, 3, 10) will be taken to be as (20, 10, 10, 10).'''
 
-        assert isinstance(lattice_shape, tuple) and (len(lattice_shape) > 0) and (len(lattice_shape) <= 4), 'Lattice shape must be tuple of at most 4 integer number all of them greater than or equal to 9.'
-        lattice_size = lattice_shape[-1]
-        lattice_dimensions = len(lattice_shape)
-        temporal_axis_size = lattice_shape[0]
+        lattice_size, lattice_dimensions, temporal_axis_size = cls.turning_lattice_shape_to_fundamental_parameters(lattice_shape)
 
         return cls(lattice_size, lattice_dimensions, fermion_dimensions, temporal_axis_size=temporal_axis_size)
 
@@ -95,6 +92,18 @@ class LatticeStructure:
     def __str__(self) -> str:
         return f'\nA {self._lattice_dimensions}D lattice structure of shape ({self._lattice_shape}) has been constructed accommodating {self._fermion_dimensions}-component fermions.\n'
     
+    @classmethod
+    def turning_lattice_shape_to_fundamental_parameters(self, lattice_shape):
+        '''Public class method to be called from subclasses as well mostly mostly to facilitate object initialization.'''
+
+        assert isinstance(lattice_shape, tuple) and (len(lattice_shape) > 0) and (len(lattice_shape) <= 4) and all( isinstance(component, int) and (component >= 9) for component in lattice_shape), 'Lattice shape must be a non-empty tuple of at most 4 integers equal to or larger than 9.'
+
+        lattice_size = lattice_shape[-1]
+        lattice_dimensions = len(lattice_shape)
+        temporal_axis_size = lattice_shape[0]
+
+        return lattice_size, lattice_dimensions, temporal_axis_size
+
     def lattice_coordinates_vectors_addition(self, tuple_a, tuple_b):
         '''-USAGE: Addition of a and b lattice coordinates vectors such that the periodic boundary condition is satisfied.
         -OUTPUT: tuple of size self_.lattice_dimensions.
