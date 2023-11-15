@@ -9,18 +9,6 @@ import custom_library.auxiliary as auxiliary
 import custom_library.lattice as lattice
 
 
-# HELPER FUNCTIONS, GLOBAL CONSTANTS AND COMPOSITE STRATEGIES
-COMMON_TYPE_STRATEGIES = st.text() | st.booleans() | st.dates() | st.floats() | st.complex_numbers()
-
-@st.composite
-def tuples_of_integers(draw, min_size=0, max_size=10, min_value=0, max_value=10):
-    '''Generates variable-sized tuples of integers within an adjustable range.'''
-
-    elements = st.integers(min_value=min_value, max_value=max_value)
-    lists_of_various_size = draw(st.lists(elements, min_size=min_size, max_size=max_size))
-
-    return tuple(lists_of_various_size)
-
 #####################################
 ######## INPUT VALUES TESTING #######
 #####################################
@@ -30,19 +18,19 @@ def tuples_of_integers(draw, min_size=0, max_size=10, min_value=0, max_value=10)
 class TestLatticeStructureConstructor(unittest.TestCase):
   '''Tests exceptions during object instantiation with out-of-range or of incorrect-type input values for the LatticeStructure __init__ constructor.'''
   
-  @given(lattice_size = st.integers().filter(lambda n: not n >= 9) | st.none() | COMMON_TYPE_STRATEGIES)
+  @given(lattice_size = st.integers().filter(lambda n: not n >= 9) | auxiliary.generate_common_strategies_apart_from(['integer']))
   def test_lattice_size_input(self, lattice_size):
     self.assertRaises(AssertionError, lambda lattice_size: lattice.LatticeStructure(lattice_size=lattice_size), lattice_size)
  
-  @given(lattice_dimensions = st.integers(min_value=-5, max_value=10).filter(lambda n: n not in [1, 2, 3, 4]) | st.none() | COMMON_TYPE_STRATEGIES)
+  @given(lattice_dimensions = st.integers(min_value=-5, max_value=10).filter(lambda n: n not in [1, 2, 3, 4]) | auxiliary.generate_common_strategies_apart_from(['integer']))
   def test_lattice_dimensions_input(self, lattice_dimensions):
     self.assertRaises(AssertionError, lambda lattice_dimensions: lattice.LatticeStructure(lattice_dimensions=lattice_dimensions), lattice_dimensions)
 
-  @given(fermion_dimensions = st.integers(min_value=-5, max_value=10).filter(lambda n: n not in [2, 4]) | st.none() | COMMON_TYPE_STRATEGIES)
+  @given(fermion_dimensions = st.integers(min_value=-5, max_value=10).filter(lambda n: n not in [2, 4]) | auxiliary.generate_common_strategies_apart_from(['integer']))
   def test_fermion_dimensions_input(self, fermion_dimensions):
     self.assertRaises(AssertionError, lambda fermion_dimensions: lattice.LatticeStructure(fermion_dimensions=fermion_dimensions), fermion_dimensions)
 
-  @given(temporal_axis_size = st.integers().filter(lambda n: not n >= 9) | COMMON_TYPE_STRATEGIES) # Default value: None
+  @given(temporal_axis_size = st.integers().filter(lambda n: not n >= 9) | auxiliary.generate_common_strategies_apart_from(['integer', 'none'])) # Default value: None
   def test_temporal_axis_size_input(self, temporal_axis_size):
     self.assertRaises(AssertionError, lambda temporal_axis_size: lattice.LatticeStructure(temporal_axis_size=temporal_axis_size), temporal_axis_size)
 
@@ -50,7 +38,7 @@ class TestLatticeStructureConstructor(unittest.TestCase):
 # ATTRIBUTES
 @pytest.mark.input_values_exception_raised_test
 class TestImmutableAttributes(unittest.TestCase):
-  '''Tests if exception are raised when attempting to modify the fundamental immutable parameters of the lattice.'''
+  '''Tests if exception are raised when attempting to modify the fundamental immutable parameters of the lattice by any values.'''
 
   @given(lattice_size = st.integers())
   def test_lattice_size_input(self, lattice_size):
@@ -73,7 +61,7 @@ class TestImmutableAttributes(unittest.TestCase):
     with self.assertRaises(auxiliary.ReadOnlyAttributeError):
       test_lattice_object.fermion_dimensions = fermion_dimensions
 
-  @given(lattice_shape = tuples_of_integers())
+  @given(lattice_shape = auxiliary.tuples_of_numbers('int', ))
   def test_lattice_shape_input(self, lattice_shape):
     test_lattice_object = lattice.LatticeStructure()
 
@@ -88,12 +76,12 @@ class TestPublicMethodVectorsAddition(unittest.TestCase):
   
   test_lattice_object = lattice.LatticeStructure()
 
-  @given(tuple_a = COMMON_TYPE_STRATEGIES | st.integers(),tuple_b = COMMON_TYPE_STRATEGIES | st.integers())
+  @given(tuple_a = auxiliary.generate_common_strategies_apart_from(['tuples of integers']), tuple_b = auxiliary.generate_common_strategies_apart_from(['tuples of integers']))
   def test_lattice_coordinates_vectors_addition_with_vectors_of_incorrect_type(self, tuple_a, tuple_b):
     with self.assertRaises(AssertionError):
       self.test_lattice_object.lattice_coordinates_vectors_addition(tuple_a, tuple_b)
 
-  @given(tuple_a = tuples_of_integers(min_value=0, max_value=8),tuple_b = tuples_of_integers(min_value=0, max_value=8))
+  @given(tuple_a = auxiliary.tuples_of_numbers('int', min_value=0, max_value=8), tuple_b = auxiliary.tuples_of_numbers('int', min_value=0, max_value=8))
   def test_lattice_coordinates_vectors_addition_with_vectors_of_different_size(self, tuple_a, tuple_b):
     assume(len(tuple_a) != len(tuple_b))
 
@@ -102,8 +90,8 @@ class TestPublicMethodVectorsAddition(unittest.TestCase):
 
   @given(tuple_size=st.integers(min_value=1, max_value=10), data=st.data())
   def test_lattice_coordinates_vectors_addition_with_vectors_of_different_size_than_the_lattice_dimensions(self, data, tuple_size):
-    tuple_a = data.draw(tuples_of_integers(min_size=tuple_size, max_size=tuple_size, min_value=0, max_value=8), "tuple_a")
-    tuple_b = data.draw(tuples_of_integers(min_size=tuple_size, max_size=tuple_size, min_value=0, max_value=8), "tuple_b")
+    tuple_a = data.draw(auxiliary.tuples_of_numbers('int', min_size=tuple_size, max_size=tuple_size, min_value=0, max_value=8), "tuple_a")
+    tuple_b = data.draw(auxiliary.tuples_of_numbers('int', min_size=tuple_size, max_size=tuple_size, min_value=0, max_value=8), "tuple_b")
 
     assume(len(tuple_a) != self.test_lattice_object.lattice_dimensions)
 
@@ -114,22 +102,39 @@ class TestPublicMethodVectorsAddition(unittest.TestCase):
   def test_lattice_coordinates_vectors_addition_with_vectors_of_different_size_than_the_lattice_dimensions(self, data):
     tuple_size = self.test_lattice_object.lattice_dimensions
 
-    tuple_a = data.draw(tuples_of_integers(min_size=tuple_size, max_size=tuple_size, min_value=9, max_value=20), "tuple_a")
-    tuple_b = data.draw(tuples_of_integers(min_size=tuple_size, max_size=tuple_size, min_value=9, max_value=20), "tuple_b")
+    tuple_a = data.draw(auxiliary.tuples_of_numbers('int', min_size=tuple_size, max_size=tuple_size, min_value=9, max_value=20), "tuple_a")
+    tuple_b = data.draw(auxiliary.tuples_of_numbers('int', min_size=tuple_size, max_size=tuple_size, min_value=9, max_value=20), "tuple_b")
 
     with self.assertRaises(AssertionError):
       self.test_lattice_object.lattice_coordinates_vectors_addition(tuple_a, tuple_b)
 
 
 @pytest.mark.input_values_exception_raised_test
+class TestPublicMethodTurningFundamentalParameters(unittest.TestCase):
+  '''Tests exceptions raised for the public .turning_fundamental_parameters_to_lattice_shape() class method for out-of-range or of incorrect-type input values.'''
+
+# lattice_size, lattice_dimensions, *, temporal_axis_size=None
+
+  @given(lattice_size = st.integers().filter(lambda n: not n >= 9) | auxiliary.generate_common_strategies_apart_from(['integer']))
+  def test_lattice_size_input(self, lattice_size):
+    self.assertRaises(AssertionError, lambda lattice_size: lattice.LatticeStructure.turning_fundamental_parameters_to_lattice_shape(lattice_size=lattice_size), lattice_size)
+  
+  @given(lattice_dimensions = st.integers(min_value=-5, max_value=10).filter(lambda n: n not in [1, 2, 3, 4]) | auxiliary.generate_common_strategies_apart_from(['integer']))
+  def test_lattice_dimensions_input(self, lattice_dimensions):
+    self.assertRaises(AssertionError, lambda lattice_dimensions: lattice.LatticeStructure.turning_fundamental_parameters_to_lattice_shape(lattice_dimensions=lattice_dimensions), lattice_dimensions)
+  
+  @given(temporal_axis_size = st.integers().filter(lambda n: not n >= 9) | auxiliary.generate_common_strategies_apart_from(['integer', 'none'])) # Default value: None
+  def test_temporal_axis_size_input(self, temporal_axis_size):
+    self.assertRaises(AssertionError, lambda temporal_axis_size: lattice.LatticeStructure.turning_fundamental_parameters_to_lattice_shape(temporal_axis_size=temporal_axis_size), temporal_axis_size)
+
+
+@pytest.mark.input_values_exception_raised_test
 class TestPublicMethodTurningLatticeShape(unittest.TestCase):
-  '''Tests exceptions raised for the public .turning_lattice_shape_to_fundamental_parameters() method for out-of-range or of incorrect-type input values.'''
+  '''Tests exceptions raised for the public .turning_lattice_shape_to_fundamental_parameters() class method for out-of-range or of incorrect-type input values.'''
 
-  test_lattice_object = lattice.LatticeStructure()
-
-  @given(lattice_shape = tuples_of_integers(min_size=5) | tuples_of_integers(min_size=1, max_size=4, max_value=8) | st.tuples(st.floats(), st.floats()) | st.none() | COMMON_TYPE_STRATEGIES)
-  @example("(,)")
-  def test_turning_lattice_shape_to_fundamental_parameters_input(self, lattice_shape):
+  @given(lattice_shape = auxiliary.tuples_of_numbers('int', min_size=5) | auxiliary.tuples_of_numbers('int', min_size=1, max_size=4, max_value=8) | auxiliary.tuples_of_numbers('float') | auxiliary.generate_common_strategies_apart_from())
+  @example(tuple())
+  def test_lattice_shape_input(self, lattice_shape):
     self.assertRaises(AssertionError, lambda lattice_shape: lattice.LatticeStructure.turning_lattice_shape_to_fundamental_parameters(lattice_shape=lattice_shape), lattice_shape)
 
 #####################################
@@ -137,7 +142,7 @@ class TestPublicMethodTurningLatticeShape(unittest.TestCase):
 #####################################
 
 @pytest.mark.output_values_replication_test
-@given(lattice_shape = tuples_of_integers(min_size=1, max_size=4, min_value=9, max_value=15))
+@given(lattice_shape = auxiliary.tuples_of_numbers('int', min_size=1, max_size=4, min_value=9, max_value=15))
 def test_turning_lattice_shape_to_fundamental_parameters(lattice_shape):
   '''Tests temporal_axis_size=None output'''
 
@@ -172,6 +177,36 @@ def test_lattice_coordinates_vectors_addition(tuple_a, tuple_b, expected_output)
 
   assert tested_output == expected_output
 
+@pytest.mark.output_values_replication_test
+@given(lattice_shape = auxiliary.tuples_of_numbers('int', min_size=1,max_size=4, min_value=9, max_value=15))
+def test_turning_lattice_shape_to_fundamental_parameters(lattice_shape):
+  fundamental_parameters = lattice.LatticeStructure.turning_lattice_shape_to_fundamental_parameters(lattice_shape=lattice_shape)
+
+  tested_output = lattice.LatticeStructure.turning_fundamental_parameters_to_lattice_shape(fundamental_parameters)
+
+  lattice_shape = (lattice_shape[0],) + (lattice_shape[-1],) * (len(lattice_shape) - 1)
+
+  expected_output = lattice_shape
+
+  assert tested_output == expected_output
+
+@pytest.mark.output_values_replication_test
+@given(lattice_size = st.integers(min_value=9, max_value=15), lattice_dimensions = st.integers(min_value=2, max_value=4), temporal_axis_size = st.none()  | st.integers(min_value=9, max_value=15))
+def test_turning_lattice_shape_to_fundamental_parameters(lattice_size, lattice_dimensions, temporal_axis_size):
+  fundamental_parameters = lattice_size, lattice_dimensions, temporal_axis_size
+  
+  lattice_shape = lattice.LatticeStructure.turning_fundamental_parameters_to_lattice_shape(lattice_size, lattice_dimensions, temporal_axis_size=temporal_axis_size)
+
+  if (lattice_shape[0] ==  lattice_shape[-1]):
+    temporal_axis_size = None
+  fundamental_parameters = lattice_size, lattice_dimensions, temporal_axis_size
+
+  tested_output = lattice.LatticeStructure.turning_lattice_shape_to_fundamental_parameters(lattice_shape)
+
+  expected_output = fundamental_parameters
+
+  assert tested_output == expected_output
+
 #####################################
 ####### PROPERTY-BASED TESTING ######
 #####################################
@@ -184,8 +219,8 @@ def test_lattice_coordinates_vectors_addition_reversibility_property(lattice_dim
   test_lattice_object = lattice.LatticeStructure(lattice_dimensions=lattice_dimensions)
   size = test_lattice_object.lattice_dimensions
 
-  tuple_a = data.draw(tuples_of_integers(min_size=size, max_size=size, min_value=0, max_value=8), "tuple_a")
-  tuple_b = data.draw(tuples_of_integers(min_size=size, max_size=size, min_value=0, max_value=8), "tuple_b")
+  tuple_a = data.draw(auxiliary.tuples_of_numbers('int', min_size=size, max_size=size, min_value=0, max_value=8), "tuple_a")
+  tuple_b = data.draw(auxiliary.tuples_of_numbers('int', min_size=size, max_size=size, min_value=0, max_value=8), "tuple_b")
 
   resulting_tuple = test_lattice_object.lattice_coordinates_vectors_addition(tuple_a, tuple_b)
 
