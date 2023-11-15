@@ -32,12 +32,8 @@ class LatticeStructure:
         assert isinstance(fermion_dimensions, int) and (fermion_dimensions in [2, 4]), 'Fermion dimensions must be a positive integer equal either to 2 or 4.'
         self._fermion_dimensions = fermion_dimensions
 
-        if temporal_axis_size is not None:
-            assert isinstance(temporal_axis_size, int) and (temporal_axis_size >=9), 'Temporal axis size must be a positive integer greater or equal to 9.'
-            self._lattice_shape = (temporal_axis_size,) + tuple([self._lattice_size]*(self._lattice_dimensions-1))
-        
-        else:
-            self._lattice_shape = tuple([self._lattice_size]*self._lattice_dimensions)
+        # Testing validity of temporal_axis_size input value is performed by the following class method itself
+        self._lattice_shape = self.turning_fundamental_parameters_to_lattice_shape(lattice_size=lattice_size, lattice_dimensions=lattice_dimensions, temporal_axis_size=temporal_axis_size)
 
         '''
         TODO: Rethink whether to keep the communicator rank information in the lattice class.
@@ -93,8 +89,26 @@ class LatticeStructure:
         return f'\nA {self._lattice_dimensions}D lattice structure of shape ({self._lattice_shape}) has been constructed accommodating {self._fermion_dimensions}-component fermions.\n'
     
     @classmethod
+    def turning_fundamental_parameters_to_lattice_shape(cls, lattice_size=9, lattice_dimensions=2, *, temporal_axis_size=None):
+        '''NOTE: Public class method to be called mostly from subclasses to facilitate object initialization.'''
+        
+        assert isinstance(lattice_size, int) and (lattice_size >= 9), 'Lattice size must be a positive integer greater or equal to 9.'
+
+        assert isinstance(lattice_dimensions, int) and (not isinstance(lattice_dimensions, bool)) and (lattice_dimensions in [1, 2, 3, 4]), 'Lattice dimensions must be a positive integer greater or equal to 1 and less or equal to 4.'
+        
+        if temporal_axis_size is not None:
+            assert isinstance(temporal_axis_size, int) and (temporal_axis_size >=9), 'Temporal axis size must be either a positive integer greater or equal to 9 or have None value.'
+            
+            lattice_shape = (temporal_axis_size,) + tuple([lattice_size]*(lattice_dimensions-1))
+        
+        else:
+            lattice_shape = tuple([lattice_size]*lattice_dimensions)
+
+        return lattice_shape
+
+    @classmethod
     def turning_lattice_shape_to_fundamental_parameters(cls, lattice_shape):
-        '''Public class method to be called from subclasses as well mostly mostly to facilitate object initialization.'''
+        '''NOTE: Public class method to be called mostly from subclasses to facilitate object initialization.'''
 
         assert isinstance(lattice_shape, tuple) and (len(lattice_shape) > 0) and (len(lattice_shape) <= 4) and all( isinstance(component, int) and (component >= 9) for component in lattice_shape), 'Lattice shape must be a non-empty tuple of at most 4 integers equal to or larger than 9.'
 
@@ -112,9 +126,15 @@ class LatticeStructure:
         -OUTPUT: tuple of size self_.lattice_dimensions.
         -NOTE: performance tested against iterator tools and still faired better time-wise.'''
 
-        assert isinstance(tuple_a, tuple) and isinstance(tuple_b, tuple) and len(tuple_a) == len(tuple_b) and len(tuple_a) == self._lattice_dimensions, 'Input vectors for addition must be tuples of the same size equal to the lattice dimensions.'
+        assertion_error_message = f'Input vectors for addition must be tuples of integers of size lattice_dimensions, with each component being smaller than the corresponding lattice_shape component.'
 
-        assert all(component_of_tuple_a < component_of_lattice_shape for component_of_tuple_a, component_of_lattice_shape in zip(tuple_a, self._lattice_shape)) and all(component_of_tuple_b < component_of_lattice_shape for component_of_tuple_b, component_of_lattice_shape in zip(tuple_a, self._lattice_shape)), 'Input vectors for addition must be tuples of integers, each component being smaller than the corresponding lattice shape component.'
+        assert isinstance(tuple_a, tuple) and all(isinstance(component, int) for component in tuple_a) and len(tuple_a) == self._lattice_dimensions, assertion_error_message
+
+        assert all(component_of_tuple_a < component_of_lattice_shape for component_of_tuple_a, component_of_lattice_shape in zip(tuple_a, self._lattice_shape)), assertion_error_message
+
+        assert isinstance(tuple_b, tuple) and all(isinstance(component, int) for component in tuple_b) and len(tuple_b) == self._lattice_dimensions, assertion_error_message
+        
+        assert all(component_of_tuple_b < component_of_lattice_shape for component_of_tuple_b, component_of_lattice_shape in zip(tuple_a, self._lattice_shape)), assertion_error_message
 
         lattice_shape = self._lattice_shape
 
